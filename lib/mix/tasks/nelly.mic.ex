@@ -17,7 +17,9 @@ defmodule Mix.Tasks.Nelly.Mic do
 
     Mix.Task.run("app.start")
 
-    case Membrane.Pipeline.start_link(NellyAssitant.Whisper.Mic.LivePipeline, []) do
+    pipeline_opts = Application.get_env(:nelly_assitant, :voice_pipeline, [])
+
+    case Membrane.Pipeline.start_link(NellyAssitant.Whisper.Mic.LivePipeline, pipeline_opts) do
       {:ok, _supervisor, _pipeline} ->
         Process.sleep(:infinity)
 

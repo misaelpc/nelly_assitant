@@ -4,5 +4,11 @@ import Config
 # Do not run `mix nelly.mic` while this is true (two pipelines would contend for the mic).
 config :nelly_assitant, :start_whisper_mic, true
 
-# PortAudio input device id (`mix pa_devices`). 1 = "misa's AirPods Pro Apple" (mic) on this machine.
-config :nelly_assitant, :portaudio_input_device_id, 1
+# PortAudio + capture format (merged into `LivePipeline`; see moduledoc).
+# Use `mix eval "Membrane.PortAudio.print_devices()"` for `device_id` on each machine.
+# Omit `:sample_rate` to let the device pick its native rate (resampler feeds Whisper at 16 kHz).
+config :nelly_assitant, :voice_pipeline,
+  device_id: 1,
+  channels: 1,
+  sample_format: :s16le,
+  sample_rate: nil

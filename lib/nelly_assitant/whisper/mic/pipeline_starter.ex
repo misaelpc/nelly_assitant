@@ -19,7 +19,9 @@ defmodule NellyAssitant.Whisper.Mic.PipelineStarter do
 
   @impl true
   def init(_opts) do
-    case Membrane.Pipeline.start_link(NellyAssitant.Whisper.Mic.LivePipeline, []) do
+    pipeline_opts = Application.get_env(:nelly_assitant, :voice_pipeline, [])
+
+    case Membrane.Pipeline.start_link(NellyAssitant.Whisper.Mic.LivePipeline, pipeline_opts) do
       {:ok, _supervisor, pipeline} ->
         {:ok, %{pipeline: pipeline}}
 

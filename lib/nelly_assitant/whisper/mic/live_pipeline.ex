@@ -1,5 +1,12 @@
 defmodule NellyAssitant.Whisper.Mic.LivePipeline do
-  @moduledoc false
+  @moduledoc """
+  Membrane pipeline: microphone → FFmpeg resample (16 kHz mono `f32le`) → Whisper → transcript sink.
+
+  Options are merged from `Application.get_env(:nelly_assitant, :voice_pipeline, [])` and the second
+  argument to `Membrane.Pipeline.start_link/2` (later keys win), similar to passing opts into a
+  custom `handle_init/2` pipeline module.
+  """
+
   use Membrane.Pipeline
 
   alias Membrane.RawAudio
@@ -26,17 +33,16 @@ defmodule NellyAssitant.Whisper.Mic.LivePipeline do
   end
 
   @impl true
-  def handle_init(_ctx, _opts) do
-    device_id = Application.get_env(:nelly_assitant, :portaudio_input_device_id, :default)
+  def handle_init(_ctx, opts) when is_list(opts) do
+    merged =
+      :nelly_assitant
+      |> Application.get_env(:voice_pipeline, [])
+      |> Keyword.merge(opts)
+
+    source_opts = build_mic_source_opts(merged)
 
     spec =
-      child(:mic_source, %Membrane.PortAudio.Source{
-        device_id: device_id,
-        sample_format: :f32le,
-        channels: 1,
-        sample_rate: nil,
-        latency: :low
-      })
+      child(:mic_source, struct(Membrane.PortAudio.Source, source_opts))
       |> child(:resample, %Membrane.FFmpeg.SWResample.Converter{
         output_stream_format: @whisper_audio
       })
@@ -48,5 +54,25 @@ defmodule NellyAssitant.Whisper.Mic.LivePipeline do
       |> child(:sink, Membrane.Fake.Sink)
 
     {[spec: spec], %{}}
+  end
+
+  defp build_mic_source_opts(opts) do
+    device_id =
+      case Keyword.fetch(opts, :device_id) do
+        {:ok, id} -> id
+        :error -> Application.get_env(:nelly_assitant, :portaudio_input_device_id, :default)
+      end
+
+    base = [
+      device_id: device_id,
+      sample_format: Keyword.get(opts, :sample_format, :s16le),
+      latency: Keyword.get(opts, :latency, :low),
+      channels: Keyword.get(opts, :channels, 1)
+    ]
+
+    case Keyword.fetch(opts, :sample_rate) do
+      {:ok, rate} -> Keyword.put(base, :sample_rate, rate)
+      :error -> base
+    end
   end
 end

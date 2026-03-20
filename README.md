@@ -27,7 +27,7 @@ Use **one** of these (not both — they would both try to use the microphone):
 
 `mix test` keeps `:start_whisper_mic` false so CI does not open the microphone.
 
-**Input device** — dev sets `:portaudio_input_device_id` (see `config/dev.exs`). Use `mix pa_devices` to list ids on your machine; omit or set `:default` for the OS default input.
+**Mic / PortAudio** — set `config :nelly_assitant, :voice_pipeline, ...` (see `config/dev.exs`): `device_id`, optional `channels`, `sample_format` (default `:s16le`), and optional `sample_rate` (omit key for PortAudio default, or `nil` for native). Pipeline options are merged with any keyword passed to `Membrane.Pipeline.start_link(LivePipeline, opts)`. If `device_id` is omitted, legacy `config :nelly_assitant, :portaudio_input_device_id` is still read. List devices with `mix eval "Membrane.PortAudio.print_devices()"`.
 
 ## Installation (library)
 
