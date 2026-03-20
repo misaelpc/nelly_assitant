@@ -5,6 +5,11 @@ defmodule NellyAssitant.Whisper.Mic.LivePipeline do
   Options are merged from `Application.get_env(:nelly_assitant, :voice_pipeline, [])` and the second
   argument to `Membrane.Pipeline.start_link/2` (later keys win), similar to passing opts into a
   custom `handle_init/2` pipeline module.
+
+  * `:whisper_toilet_capacity` — queue size for **both** toilets (mic → resampler and resampler →
+    Whisper; default `50_000`). The mic → resampler link used to use Membrane’s implicit default
+    (~`1000`) unless this is set on an explicit `via_in`. Do not set this key to `nil` if you mean
+    “default”; omit the key instead.
   """
 
   use Membrane.Pipeline
@@ -12,6 +17,8 @@ defmodule NellyAssitant.Whisper.Mic.LivePipeline do
   alias Membrane.RawAudio
 
   @whisper_audio %RawAudio{sample_format: :f32le, channels: 1, sample_rate: 16_000}
+
+  @default_whisper_toilet_capacity 50_000
 
   defp setup_serving do
     hf_repo = "openai/whisper-tiny"
@@ -41,12 +48,15 @@ defmodule NellyAssitant.Whisper.Mic.LivePipeline do
 
     source_opts = build_mic_source_opts(merged)
 
+    toilet_capacity = resolve_toilet_capacity(merged)
+
     spec =
       child(:mic_source, struct(Membrane.PortAudio.Source, source_opts))
+      |> via_in(:input, toilet_capacity: toilet_capacity)
       |> child(:resample, %Membrane.FFmpeg.SWResample.Converter{
         output_stream_format: @whisper_audio
       })
-      |> via_in(:input, toilet_capacity: 1_000)
+      |> via_in(:input, toilet_capacity: toilet_capacity)
       |> child(:whisper, %Membrane.Whisper.TranscriberFilter{
         serving: setup_serving()
       })
@@ -73,6 +83,14 @@ defmodule NellyAssitant.Whisper.Mic.LivePipeline do
     case Keyword.fetch(opts, :sample_rate) do
       {:ok, rate} -> Keyword.put(base, :sample_rate, rate)
       :error -> base
+    end
+  end
+
+  defp resolve_toilet_capacity(opts) do
+    case Keyword.fetch(opts, :whisper_toilet_capacity) do
+      {:ok, n} when is_integer(n) and n > 0 -> n
+      {:ok, _} -> @default_whisper_toilet_capacity
+      :error -> @default_whisper_toilet_capacity
     end
   end
 end

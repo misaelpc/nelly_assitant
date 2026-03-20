@@ -27,7 +27,7 @@ Use **one** of these (not both — they would both try to use the microphone):
 
 `mix test` keeps `:start_whisper_mic` false so CI does not open the microphone.
 
-**Mic / PortAudio** — set `config :nelly_assitant, :voice_pipeline, ...` (see `config/dev.exs`): `device_id`, optional `channels`, `sample_format` (default `:s16le`), and optional `sample_rate` (omit key for PortAudio default, or `nil` for native). Pipeline options are merged with any keyword passed to `Membrane.Pipeline.start_link(LivePipeline, opts)`. If `device_id` is omitted, legacy `config :nelly_assitant, :portaudio_input_device_id` is still read. List devices with `mix eval "Membrane.PortAudio.print_devices()"`.
+**Mic / PortAudio** — use a **single** `config :nelly_assitant, :voice_pipeline, key: value, ...` block (repeated `config` lines for the same key **replace** the whole map). Options: `device_id`, optional `channels`, `sample_format` (default `:s16le`), optional `sample_rate`, optional `whisper_toilet_capacity` (default `50_000`; applies to **both** mic→resample and resample→Whisper toilets). Omit `whisper_toilet_capacity` for the default; **do not set it to `nil`** (that would fall back to Membrane’s tiny default on the link). After changing config on a device, run **`mix compile`** so the pipeline module is rebuilt. On a **Pi**, increase `whisper_toilet_capacity` if overflow persists. Pipeline options merge with `Membrane.Pipeline.start_link(LivePipeline, opts)`. Legacy `portaudio_input_device_id` is still used when `device_id` is absent. List devices: `mix eval "Membrane.PortAudio.print_devices()"`.
 
 ## Installation (library)
 

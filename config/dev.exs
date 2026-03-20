@@ -12,3 +12,5 @@ config :nelly_assitant, :voice_pipeline,
   channels: 1,
   sample_format: :s16le,
   sample_rate: nil
+
+# whisper_toilet_capacity: 100_000
