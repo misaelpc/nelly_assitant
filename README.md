@@ -6,6 +6,9 @@ Elixir app with a **live microphone → Whisper** Membrane pipeline (via [`membr
 
 - **PortAudio** — required by `membrane_portaudio_plugin` to capture the mic.  
   - macOS (Homebrew): `brew install portaudio`
+- **FFmpeg** (libs + headers for compile) — required by `membrane_ffmpeg_swresample_plugin` to resample mic audio (native rate, e.g. 48 kHz) to **16 kHz** for Whisper.  
+  - macOS: `brew install ffmpeg`  
+  - Debian / Raspberry Pi OS: e.g. `sudo apt install ffmpeg libavcodec-dev libavformat-dev libavutil-dev libswresample-dev pkg-config`
 - **EXLA / XLA** — Whisper inference uses the EXLA backend. Follow the [EXLA installation guide](https://hexdocs.pm/exla) for your OS (CPU vs GPU). First compile may download or build native artifacts.  
   - If unpacking fails with `:eof`, remove the partial cache and recompile, e.g. `mix deps.clean exla --build` and `mix deps.compile exla`.
 - **Network** — the first run downloads the `openai/whisper-tiny` weights from Hugging Face.

@@ -2,6 +2,10 @@ defmodule NellyAssitant.Whisper.Mic.LivePipeline do
   @moduledoc false
   use Membrane.Pipeline
 
+  alias Membrane.RawAudio
+
+  @whisper_audio %RawAudio{sample_format: :f32le, channels: 1, sample_rate: 16_000}
+
   defp setup_serving do
     hf_repo = "openai/whisper-tiny"
 
@@ -30,8 +34,11 @@ defmodule NellyAssitant.Whisper.Mic.LivePipeline do
         device_id: device_id,
         sample_format: :f32le,
         channels: 1,
-        sample_rate: 16_000,
+        sample_rate: nil,
         latency: :low
+      })
+      |> child(:resample, %Membrane.FFmpeg.SWResample.Converter{
+        output_stream_format: @whisper_audio
       })
       |> via_in(:input, toilet_capacity: 1_000)
       |> child(:whisper, %Membrane.Whisper.TranscriberFilter{
