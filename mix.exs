@@ -24,7 +24,9 @@ defmodule NellyAssitant.MixProject do
     [
       {:membrane_whisper_plugin, "~> 0.1.0"},
       {:membrane_portaudio_plugin, "~> 0.19.4"},
-      {:membrane_ffmpeg_swresample_plugin, "~> 0.20.5"}
+      {:membrane_ffmpeg_swresample_plugin, "~> 0.20.5"},
+      {:membrane_wav_plugin, "~> 0.10.1"},
+      {:membrane_file_plugin, "~> 0.17.3"}
     ]
   end
 end
