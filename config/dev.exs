@@ -9,6 +9,7 @@ config :nelly_assitant, :start_whisper_mic, true
 # Omit `:sample_rate` to let the device pick its native rate (resampler feeds Whisper at 16 kHz).
 config :nelly_assitant, :voice_pipeline,
   device_id: 1,
+  # On Raspberry Pi + stereo USB mic: omit `:channels` so PortAudio uses the device default (forcing `1` can record silence).
   channels: 1,
   sample_format: :s16le,
   sample_rate: nil

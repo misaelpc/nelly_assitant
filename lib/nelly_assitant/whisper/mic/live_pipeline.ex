@@ -6,6 +6,9 @@ defmodule NellyAssitant.Whisper.Mic.LivePipeline do
   argument to `Membrane.Pipeline.start_link/2` (later keys win), similar to passing opts into a
   custom `handle_init/2` pipeline module.
 
+  * `:channels` — omit to use the **PortAudio device default** (recommended for stereo USB mics on
+    Linux; forcing `1` can give silence). Set `1` or `2` only when needed.
+
   * `:whisper_toilet_capacity` — queue size for **both** toilets (mic → resampler and resampler →
     Whisper; default `50_000`). The mic → resampler link used to use Membrane’s implicit default
     (~`1000`) unless this is set on an explicit `via_in`. Do not set this key to `nil` if you mean
@@ -76,9 +79,14 @@ defmodule NellyAssitant.Whisper.Mic.LivePipeline do
     base = [
       device_id: device_id,
       sample_format: Keyword.get(opts, :sample_format, :s16le),
-      latency: Keyword.get(opts, :latency, :low),
-      channels: Keyword.get(opts, :channels, 1)
+      latency: Keyword.get(opts, :latency, :low)
     ]
+
+    base =
+      case Keyword.fetch(opts, :channels) do
+        {:ok, c} -> Keyword.put(base, :channels, c)
+        :error -> base
+      end
 
     case Keyword.fetch(opts, :sample_rate) do
       {:ok, rate} -> Keyword.put(base, :sample_rate, rate)

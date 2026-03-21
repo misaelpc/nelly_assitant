@@ -50,16 +50,33 @@ defmodule Mix.Tasks.Nelly.MicWav do
     {:ok, _} = Application.ensure_all_started(:membrane_wav_plugin)
     {:ok, _} = Application.ensure_all_started(:membrane_portaudio_plugin)
 
-    pipeline_opts = Application.get_env(:nelly_assitant, :voice_pipeline, [])
-    pipeline_opts = Keyword.put(pipeline_opts, :output, output)
+    pipeline_opts =
+      :nelly_assitant
+      |> Application.get_env(:voice_pipeline, [])
+      |> Keyword.put(:output, output)
+      |> Keyword.put(:record_seconds, seconds)
 
-    Mix.shell().info("Recording #{seconds}s to #{output} (Ctrl+C aborts)...")
+    Mix.shell().info("Recording #{seconds}s to #{output} (graceful stop + WAV finalize)...")
 
     case Membrane.Pipeline.start_link(NellyAssitant.Whisper.Mic.MicToWavPipeline, pipeline_opts) do
       {:ok, _supervisor, pipeline} ->
-        Process.sleep(seconds * 1000)
-        :ok = Membrane.Pipeline.terminate(pipeline, timeout: 10_000, force?: true)
-        Mix.shell().info("Done. Play the file with: aplay #{output} (Linux) or afplay (macOS).")
+        ref = Process.monitor(pipeline)
+
+        receive do
+          {:DOWN, ^ref, :process, _pid, :normal} ->
+            :ok
+
+          {:DOWN, ^ref, :process, _pid, reason} ->
+            Mix.shell().error("pipeline exited: #{inspect(reason)}")
+        after
+          seconds * 1000 + 30_000 ->
+            _ = Membrane.Pipeline.terminate(pipeline, timeout: 5000, force?: true)
+            Mix.raise("timeout waiting for pipeline shutdown after recording")
+        end
+
+        Mix.shell().info(
+          "Done. Linux: aplay #{output}  (or ffplay). If silent, remove :channels from :voice_pipeline (use device default)."
+        )
 
       {:error, reason} ->
         Mix.raise("failed to start mic WAV pipeline: #{inspect(reason)}")

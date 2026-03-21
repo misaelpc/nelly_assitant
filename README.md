@@ -34,11 +34,11 @@ mix nelly.mic_wav
 # or: mix nelly.mic_wav --seconds 5 --output /tmp/mic_test.wav
 ```
 
-This uses the same `:voice_pipeline` PortAudio settings and writes a playable WAV. On Linux: `aplay /tmp/mic_test.wav` (or `ffplay`). If the file is silent or tiny, the issue is capture/device level, not Whisper.
+This uses the same `:voice_pipeline` PortAudio settings and writes a playable WAV. On Linux: `aplay /tmp/mic_test.wav` (or `ffplay`). The pipeline stops **gracefully** so the WAV header and data finalize. If the file is **silent**, remove **`channels`** from `:voice_pipeline` (use the device default; stereo USB mics often fail with `channels: 1`).
 
 `mix test` keeps `:start_whisper_mic` false so CI does not open the microphone.
 
-**Mic / PortAudio** — use a **single** `config :nelly_assitant, :voice_pipeline, key: value, ...` block (repeated `config` lines for the same key **replace** the whole map). Options: `device_id`, optional `channels`, `sample_format` (default `:s16le`), optional `sample_rate`, optional `whisper_toilet_capacity` (default `50_000`; applies to **both** mic→resample and resample→Whisper toilets). Omit `whisper_toilet_capacity` for the default; **do not set it to `nil`** (that would fall back to Membrane’s tiny default on the link). After changing config on a device, run **`mix compile`** so the pipeline module is rebuilt. On a **Pi**, increase `whisper_toilet_capacity` if overflow persists. Pipeline options merge with `Membrane.Pipeline.start_link(LivePipeline, opts)`. Legacy `portaudio_input_device_id` is still used when `device_id` is absent. List devices: `mix eval "Membrane.PortAudio.print_devices()"`.
+**Mic / PortAudio** — use a **single** `config :nelly_assitant, :voice_pipeline, key: value, ...` block (repeated `config` lines for the same key **replace** the whole map). Options: `device_id`, optional **`channels`** (omit unless you must; **stereo USB on Pi + `channels: 1` often yields silence**), `sample_format` (default `:s16le`), optional `sample_rate`, optional `whisper_toilet_capacity` (default `50_000`; toilets on mic→resample/resample→Whisper; WAV path uses the same capacity on mic→WAV and WAV→file). Omit `whisper_toilet_capacity` for the default; **do not set it to `nil`**. After changing config, run **`mix compile`**. Legacy `portaudio_input_device_id` is still used when `device_id` is absent. List devices: `mix eval "Membrane.PortAudio.print_devices()"`.
 
 ## Installation (library)
 
