@@ -16,10 +16,10 @@ defmodule NellyAssitant.Whisper.Mic.LivePipeline do
   * `:mic_resample_toilet_capacity` — overrides the mic → resample toilet when set (otherwise
     `whisper_toilet_capacity` or default `50_000`).
 
-  * `:whisper_input_toilet_capacity` — toilet **before Whisper** (default `4_000` buffers). This
-    caps how much audio can queue when inference is slower than realtime; **very large values**
-    (e.g. `50_000`) cause **multi‑minute lag** between speech and printed text. Raise only if you
-    see toilet overflow errors and need more headroom.
+  * `:whisper_input_toilet_capacity` — toilet **before Whisper** (default **`32_000`** buffers).
+    Must be large enough that **push** audio from the resampler does not overflow while Whisper
+    runs; **`4_000` is too small** for typical live capture. Lower values reduce worst‑case lag if
+    inference keeps up with realtime.
 
   * `:whisper_disable_compile` — if `true`, skip Bumblebee `compile: [batch_size: …]` (default is
     compiled with `whisper_compile_batch_size`, default `1`, for faster steady‑state inference).
@@ -41,6 +41,9 @@ defmodule NellyAssitant.Whisper.Mic.LivePipeline do
 
   * `:whisper_language` — BCP-47 style code for multilingual models (default `"en"`). Set to `nil`
     to let the model detect language (slightly different behavior / cost).
+
+  * `:whisper_file_chunk_seconds` — used only by **`mix nelly.whisper_file`** (default `30`) for
+    long files; live mic uses **`whisper_chunk_seconds`** instead.
   """
 
   use Membrane.Pipeline
@@ -50,36 +53,7 @@ defmodule NellyAssitant.Whisper.Mic.LivePipeline do
   @whisper_audio %RawAudio{sample_format: :f32le, channels: 1, sample_rate: 16_000}
 
   @default_mic_resample_toilet_capacity 50_000
-  @default_whisper_input_toilet_capacity 4_000
-  @default_whisper_hf_repo "openai/whisper-tiny"
-  @default_whisper_chunk_seconds 6
-
-  defp setup_serving(merged_opts) do
-    hf_repo = Keyword.get(merged_opts, :whisper_hf_repo, @default_whisper_hf_repo)
-    chunk_sec = resolve_whisper_chunk_seconds(merged_opts)
-
-    whisper_opts =
-      [
-        stream: true,
-        chunk_num_seconds: chunk_sec,
-        language: resolve_whisper_language(merged_opts)
-      ]
-      |> maybe_put_whisper_context(merged_opts)
-      |> maybe_put_whisper_compile(merged_opts)
-
-    {:ok, whisper} = Bumblebee.load_model({:hf, hf_repo})
-    {:ok, featurizer} = Bumblebee.load_featurizer({:hf, hf_repo})
-    {:ok, tokenizer} = Bumblebee.load_tokenizer({:hf, hf_repo})
-    {:ok, generation_config} = Bumblebee.load_generation_config({:hf, hf_repo})
-
-    Bumblebee.Audio.speech_to_text_whisper(
-      whisper,
-      featurizer,
-      tokenizer,
-      generation_config,
-      whisper_opts
-    )
-  end
+  @default_whisper_input_toilet_capacity 32_000
 
   @impl true
   def handle_init(_ctx, opts) when is_list(opts) do
@@ -112,7 +86,7 @@ defmodule NellyAssitant.Whisper.Mic.LivePipeline do
       to_whisper
       |> via_in(:input, toilet_capacity: whisper_toilet)
       |> child(:whisper, %Membrane.Whisper.TranscriberFilter{
-        serving: setup_serving(merged)
+        serving: NellyAssitant.Whisper.WhisperServing.build_for_live(merged)
       })
       |> child(:transcript_printer, NellyAssitant.Whisper.Mic.TranscriptPrinter)
       |> child(:sink, Membrane.Fake.Sink)
@@ -174,47 +148,6 @@ defmodule NellyAssitant.Whisper.Mic.LivePipeline do
       {:ok, n} when is_number(n) and n > 0 -> n * 1.0
       {:ok, _} -> 1.0
       :error -> 1.0
-    end
-  end
-
-  defp resolve_whisper_chunk_seconds(opts) do
-    case Keyword.fetch(opts, :whisper_chunk_seconds) do
-      {:ok, n} when is_number(n) and n > 0 -> n * 1.0
-      {:ok, _} -> @default_whisper_chunk_seconds * 1.0
-      :error -> @default_whisper_chunk_seconds * 1.0
-    end
-  end
-
-  defp resolve_whisper_language(opts) do
-    case Keyword.fetch(opts, :whisper_language) do
-      {:ok, nil} -> nil
-      {:ok, lang} when is_binary(lang) -> lang
-      {:ok, _} -> "en"
-      :error -> "en"
-    end
-  end
-
-  defp maybe_put_whisper_context(opts, merged) do
-    case Keyword.fetch(merged, :whisper_context_seconds) do
-      {:ok, n} when is_number(n) and n > 0 ->
-        Keyword.put(opts, :context_num_seconds, n * 1.0)
-
-      _ ->
-        opts
-    end
-  end
-
-  defp maybe_put_whisper_compile(opts, merged) do
-    if Keyword.get(merged, :whisper_disable_compile, false) do
-      opts
-    else
-      batch =
-        case Keyword.fetch(merged, :whisper_compile_batch_size) do
-          {:ok, n} when is_integer(n) and n > 0 -> n
-          _ -> 1
-        end
-
-      Keyword.put(opts, :compile, [batch_size: batch])
     end
   end
 end

@@ -2,7 +2,7 @@ import Config
 
 # Supervised GenServer (`NellyAssitant.Whisper.Mic.PipelineStarter`) starts the mic pipeline on boot.
 # Do not run `mix nelly.mic` while this is true (two pipelines would contend for the mic).
-config :nelly_assitant, :start_whisper_mic, true
+config :nelly_assitant, :start_whisper_mic, false
 
 # PortAudio + capture format (merged into `LivePipeline` / `mix nelly.mic_wav`).
 # device_id: from `mix eval "Membrane.PortAudio.print_devices()"` (not the same number as ALSA card).

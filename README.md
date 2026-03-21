@@ -33,14 +33,27 @@ The defaults favor a **small, fast** model (`openai/whisper-tiny`) and **6 s** s
 2. **Keep chunks reasonably long** — **`whisper_chunk_seconds`** defaults to **6**. Values like **2** update the screen faster but worsen boundary artifacts; try **8–10** if you can tolerate slower subtitles.
 3. **Level and language** — ensure **`mic_f32_gain`** and capture volume are adequate; **`whisper_language: "en"`** (default) matches English speech (set **`whisper_language: nil`** only if you want automatic language detection on a multilingual checkpoint).
 
-### Latency (text shows minutes late, or floods with repeats)
+### Latency & toilet overflow (live mic)
 
-Transcripts are **not** delayed by “heavy” mic data — resampling is cheap. Delay usually means **Whisper inference is slower than realtime** (common on a Pi with **`whisper-base`**) and audio was **queued** in a huge Membrane toilet before the model.
+The resampler **pushes** buffers into a Membrane **toilet** in front of Whisper. If that toilet is **too small**, you get **`Toilet overflow`** even when CPU usage looks moderate — it means **Whisper is consuming buffers slower than capture produces them**, so the queue hits its cap.
 
-- **`whisper_input_toilet_capacity`** (default **`4000`** buffers) caps that queue. **Do not** set this to **`50_000`** unless you need it — that can create **minutes** of lag. Keep **`whisper_toilet_capacity` / `mic_resample_toilet_capacity`** high for the **mic → resample** push link only.
-- Prefer **`openai/whisper-tiny`** on constrained hardware; **`whisper-base`** is much slower per chunk.
-- Bumblebee **`compile: [batch_size: 1]`** is enabled by default for steadier inference; set **`whisper_disable_compile: true`** only if debugging compile issues.
-- Consecutive **identical** lines from chunk overlap are skipped in the transcript printer; similar-but-not-identical phrases can still repeat when each chunk partially re-transcribes the same words.
+- **`whisper_input_toilet_capacity`** defaults to **`32_000`** buffers so live capture does not trip overflow as easily as with **`4_000`**. If you **lower** it to reduce worst-case lag, increase gradually if overflows return.
+- **`whisper_toilet_capacity` / `mic_resample_toilet_capacity`** (default **`50_000`**) stay on the **mic → resample** link only.
+- Prefer **`openai/whisper-tiny`** on a Pi; **`whisper-base`** is slower per chunk.
+- Bumblebee **`compile: [batch_size: 1]`** is on by default; **`whisper_disable_compile: true`** only for debugging.
+
+### Benchmark Whisper on a file (no mic)
+
+To check **pure inference** time on the Pi (ffmpeg decode + EXLA), disable **`start_whisper_mic`**, then:
+
+```bash
+mix nelly.whisper_file /tmp/mic_capture.wav
+# mix nelly.whisper_file clip.mp3 --repo openai/whisper-base --chunk-seconds 30
+```
+
+Uses the same `:voice_pipeline` repo / language / compile flags where applicable. Prints **wall time in ms** and the full transcript.
+
+**Speech vs music:** Whisper targets **spoken** audio. **Songs with full instrumentation** (e.g. jazz, pop mixes) often produce **garbled or repetitive** text (“music”, “thank you”, fragments)—that is normal, not a broken install. Use a **spoken** clip or **isolated vocals** to judge model quality.
 
 ### Check the microphone (raw PCM, no Whisper / EXLA)
 
@@ -77,7 +90,7 @@ The pipeline stops **gracefully**; check logs for `PushPcmSink finished: <N> byt
 
 Optional: copy [`config/dev.local.exs.example`](config/dev.local.exs.example) to **`config/dev.local.exs`** (gitignored); `dev.exs` imports it when present so you can keep Mac settings in `dev.exs` and Pi overrides locally.
 
-Other options: **`whisper_toilet_capacity`** / **`mic_resample_toilet_capacity`** (mic → resample, default `50_000`); **`whisper_input_toilet_capacity`** (before Whisper, default `4000` — keep moderate for low latency). After config changes, run **`mix compile`**. Legacy `portaudio_input_device_id` applies when `device_id` is absent.
+Other options: **`whisper_toilet_capacity`** / **`mic_resample_toilet_capacity`** (mic → resample, default `50_000`); **`whisper_input_toilet_capacity`** (before Whisper, default `32_000`). After config changes, run **`mix compile`**. Legacy `portaudio_input_device_id` applies when `device_id` is absent.
 
 ## Installation (library)
 
