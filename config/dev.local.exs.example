@@ -12,3 +12,8 @@ config :nelly_assitant, :voice_pipeline,
   channels: 2,
   sample_format: :s16le,
   sample_rate: 44_100
+
+# Quiet mic for live Whisper: add to the list above, e.g. `mic_f32_gain: 2.5` (linear; ~2.0 ≈ +6 dB).
+#
+# Better accuracy (slower / more RAM): `whisper_hf_repo: "openai/whisper-base"`
+# Faster screen updates but messier merges: lower `whisper_chunk_seconds` (default 6).

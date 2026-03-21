@@ -11,7 +11,7 @@ Elixir app with a **live microphone → Whisper** Membrane pipeline (via [`membr
   - Debian / Raspberry Pi OS: e.g. `sudo apt install ffmpeg libavcodec-dev libavformat-dev libavutil-dev libswresample-dev pkg-config`
 - **EXLA / XLA** — Whisper inference uses the EXLA backend. Follow the [EXLA installation guide](https://hexdocs.pm/exla) for your OS (CPU vs GPU). First compile may download or build native artifacts.  
   - If unpacking fails with `:eof`, remove the partial cache and recompile, e.g. `mix deps.clean exla --build` and `mix deps.compile exla`.
-- **Network** — the first run downloads the `openai/whisper-tiny` weights from Hugging Face.
+- **Network** — the first run downloads Whisper weights from Hugging Face (default repo `openai/whisper-tiny`; you can switch to `openai/whisper-base` in config — see below).
 
 ## Run the live mic demo
 
@@ -24,6 +24,14 @@ Use **one** of these (not both — they would both try to use the microphone):
    ```bash
    mix nelly.mic
    ```
+
+### Transcription quality (missing words, scrambled phrases)
+
+The defaults favor a **small, fast** model (`openai/whisper-tiny`) and **6 s** streaming chunks (Bumblebee merges overlaps between chunks). If you see lots of dropped words or nonsense like split “one two three” across lines:
+
+1. **Use a larger model** — in `:voice_pipeline` set **`whisper_hf_repo: "openai/whisper-base"`** (or `whisper-small` if you have RAM). First run downloads and compiles a bigger graph; accuracy improves a lot.
+2. **Keep chunks reasonably long** — **`whisper_chunk_seconds`** defaults to **6**. Values like **2** update the screen faster but worsen boundary artifacts; try **8–10** if you can tolerate slower subtitles.
+3. **Level and language** — ensure **`mic_f32_gain`** and capture volume are adequate; **`whisper_language: "en"`** (default) matches English speech (set **`whisper_language: nil`** only if you want automatic language detection on a multilingual checkpoint).
 
 ### Check the microphone (raw PCM, no Whisper / EXLA)
 
@@ -39,6 +47,16 @@ This uses the same `:voice_pipeline` PortAudio settings and writes **raw little-
 ```bash
 ffmpeg -f s16le -ar 44100 -ac 2 -i mic_capture.raw mic_capture.wav
 ```
+
+**Playback sounds quiet?** Boost at convert time, e.g. about **+10 dB** (`volume=3.16` is ~10 dB; tune to taste):
+
+```bash
+ffmpeg -f s16le -ar 44100 -ac 2 -i mic_capture.raw -af volume=3 mic_louder.wav
+```
+
+Or raise **capture** level on Linux: `alsamixer` → **F4** (Capture) → increase Mic / USB gain.
+
+For the **live Whisper** pipeline, optional software gain **after resample** (before the model): in `:voice_pipeline` set **`mic_f32_gain`** (linear, default `1.0`), e.g. `2.0` or `3.0`. Samples are clamped to `[-1, 1]`.
 
 The pipeline stops **gracefully**; check logs for `PushPcmSink finished: <N> bytes`.
 
