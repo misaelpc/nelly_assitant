@@ -33,6 +33,15 @@ The defaults favor a **small, fast** model (`openai/whisper-tiny`) and **6 s** s
 2. **Keep chunks reasonably long** — **`whisper_chunk_seconds`** defaults to **6**. Values like **2** update the screen faster but worsen boundary artifacts; try **8–10** if you can tolerate slower subtitles.
 3. **Level and language** — ensure **`mic_f32_gain`** and capture volume are adequate; **`whisper_language: "en"`** (default) matches English speech (set **`whisper_language: nil`** only if you want automatic language detection on a multilingual checkpoint).
 
+### Latency (text shows minutes late, or floods with repeats)
+
+Transcripts are **not** delayed by “heavy” mic data — resampling is cheap. Delay usually means **Whisper inference is slower than realtime** (common on a Pi with **`whisper-base`**) and audio was **queued** in a huge Membrane toilet before the model.
+
+- **`whisper_input_toilet_capacity`** (default **`4000`** buffers) caps that queue. **Do not** set this to **`50_000`** unless you need it — that can create **minutes** of lag. Keep **`whisper_toilet_capacity` / `mic_resample_toilet_capacity`** high for the **mic → resample** push link only.
+- Prefer **`openai/whisper-tiny`** on constrained hardware; **`whisper-base`** is much slower per chunk.
+- Bumblebee **`compile: [batch_size: 1]`** is enabled by default for steadier inference; set **`whisper_disable_compile: true`** only if debugging compile issues.
+- Consecutive **identical** lines from chunk overlap are skipped in the transcript printer; similar-but-not-identical phrases can still repeat when each chunk partially re-transcribes the same words.
+
 ### Check the microphone (raw PCM, no Whisper / EXLA)
 
 With **`start_whisper_mic` set to `false`** (so nothing else holds the mic):
@@ -68,7 +77,7 @@ The pipeline stops **gracefully**; check logs for `PushPcmSink finished: <N> byt
 
 Optional: copy [`config/dev.local.exs.example`](config/dev.local.exs.example) to **`config/dev.local.exs`** (gitignored); `dev.exs` imports it when present so you can keep Mac settings in `dev.exs` and Pi overrides locally.
 
-Other options: optional `whisper_toilet_capacity` (default `50_000`; do not set to `nil`). After config changes, run **`mix compile`**. Legacy `portaudio_input_device_id` applies when `device_id` is absent.
+Other options: **`whisper_toilet_capacity`** / **`mic_resample_toilet_capacity`** (mic → resample, default `50_000`); **`whisper_input_toilet_capacity`** (before Whisper, default `4000` — keep moderate for low latency). After config changes, run **`mix compile`**. Legacy `portaudio_input_device_id` applies when `device_id` is absent.
 
 ## Installation (library)
 

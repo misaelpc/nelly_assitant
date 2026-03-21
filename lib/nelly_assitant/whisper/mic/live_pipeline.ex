@@ -10,10 +10,19 @@ defmodule NellyAssitant.Whisper.Mic.LivePipeline do
     (e.g. `arecord ... -c 2 -r 44100` works), set **`channels: 2`** here; **mono (`1`) can be silent**
     on some stereo USB gadgets.
 
-  * `:whisper_toilet_capacity` — queue size for **both** toilets (mic → resampler and resampler →
-    Whisper; default `50_000`). The mic → resampler link used to use Membrane’s implicit default
-    (~`1000`) unless this is set on an explicit `via_in`. Do not set this key to `nil` if you mean
-    “default”; omit the key instead.
+  * `:whisper_toilet_capacity` — **legacy:** toilet size for **mic → resample** only (default
+    `50_000`). Keep this **high** so push audio does not overflow.
+
+  * `:mic_resample_toilet_capacity` — overrides the mic → resample toilet when set (otherwise
+    `whisper_toilet_capacity` or default `50_000`).
+
+  * `:whisper_input_toilet_capacity` — toilet **before Whisper** (default `4_000` buffers). This
+    caps how much audio can queue when inference is slower than realtime; **very large values**
+    (e.g. `50_000`) cause **multi‑minute lag** between speech and printed text. Raise only if you
+    see toilet overflow errors and need more headroom.
+
+  * `:whisper_disable_compile` — if `true`, skip Bumblebee `compile: [batch_size: …]` (default is
+    compiled with `whisper_compile_batch_size`, default `1`, for faster steady‑state inference).
 
   * `:mic_f32_gain` — optional linear gain on **16 kHz mono float** audio **after** resample and
     **before** Whisper (default `1.0`). Use e.g. `2.0` or `3.0` if the mic is quiet; samples are
@@ -40,7 +49,8 @@ defmodule NellyAssitant.Whisper.Mic.LivePipeline do
 
   @whisper_audio %RawAudio{sample_format: :f32le, channels: 1, sample_rate: 16_000}
 
-  @default_whisper_toilet_capacity 50_000
+  @default_mic_resample_toilet_capacity 50_000
+  @default_whisper_input_toilet_capacity 4_000
   @default_whisper_hf_repo "openai/whisper-tiny"
   @default_whisper_chunk_seconds 6
 
@@ -55,6 +65,7 @@ defmodule NellyAssitant.Whisper.Mic.LivePipeline do
         language: resolve_whisper_language(merged_opts)
       ]
       |> maybe_put_whisper_context(merged_opts)
+      |> maybe_put_whisper_compile(merged_opts)
 
     {:ok, whisper} = Bumblebee.load_model({:hf, hf_repo})
     {:ok, featurizer} = Bumblebee.load_featurizer({:hf, hf_repo})
@@ -79,12 +90,12 @@ defmodule NellyAssitant.Whisper.Mic.LivePipeline do
 
     source_opts = build_mic_source_opts(merged)
 
-    toilet_capacity = resolve_toilet_capacity(merged)
+    {mic_toilet, whisper_toilet} = resolve_toilet_capacities(merged)
     f32_gain = resolve_f32_gain(merged)
 
     after_resample =
       child(:mic_source, struct(Membrane.PortAudio.Source, source_opts))
-      |> via_in(:input, toilet_capacity: toilet_capacity)
+      |> via_in(:input, toilet_capacity: mic_toilet)
       |> child(:resample, %Membrane.FFmpeg.SWResample.Converter{
         output_stream_format: @whisper_audio
       })
@@ -99,7 +110,7 @@ defmodule NellyAssitant.Whisper.Mic.LivePipeline do
 
     spec =
       to_whisper
-      |> via_in(:input, toilet_capacity: toilet_capacity)
+      |> via_in(:input, toilet_capacity: whisper_toilet)
       |> child(:whisper, %Membrane.Whisper.TranscriberFilter{
         serving: setup_serving(merged)
       })
@@ -134,12 +145,28 @@ defmodule NellyAssitant.Whisper.Mic.LivePipeline do
     end
   end
 
-  defp resolve_toilet_capacity(opts) do
-    case Keyword.fetch(opts, :whisper_toilet_capacity) do
-      {:ok, n} when is_integer(n) and n > 0 -> n
-      {:ok, _} -> @default_whisper_toilet_capacity
-      :error -> @default_whisper_toilet_capacity
-    end
+  defp resolve_toilet_capacities(opts) do
+    mic =
+      case Keyword.fetch(opts, :mic_resample_toilet_capacity) do
+        {:ok, n} when is_integer(n) and n > 0 ->
+          n
+
+        _ ->
+          case Keyword.fetch(opts, :whisper_toilet_capacity) do
+            {:ok, n} when is_integer(n) and n > 0 -> n
+            {:ok, _} -> @default_mic_resample_toilet_capacity
+            :error -> @default_mic_resample_toilet_capacity
+          end
+      end
+
+    whisper =
+      case Keyword.fetch(opts, :whisper_input_toilet_capacity) do
+        {:ok, n} when is_integer(n) and n > 0 -> n
+        {:ok, _} -> @default_whisper_input_toilet_capacity
+        :error -> @default_whisper_input_toilet_capacity
+      end
+
+    {mic, whisper}
   end
 
   defp resolve_f32_gain(opts) do
@@ -174,6 +201,20 @@ defmodule NellyAssitant.Whisper.Mic.LivePipeline do
 
       _ ->
         opts
+    end
+  end
+
+  defp maybe_put_whisper_compile(opts, merged) do
+    if Keyword.get(merged, :whisper_disable_compile, false) do
+      opts
+    else
+      batch =
+        case Keyword.fetch(merged, :whisper_compile_batch_size) do
+          {:ok, n} when is_integer(n) and n > 0 -> n
+          _ -> 1
+        end
+
+      Keyword.put(opts, :compile, [batch_size: batch])
     end
   end
 end
