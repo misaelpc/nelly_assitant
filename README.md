@@ -34,11 +34,17 @@ mix nelly.mic_wav
 # or: mix nelly.mic_wav --seconds 5 --output /tmp/mic_test.wav
 ```
 
-This uses the same `:voice_pipeline` PortAudio settings and writes a playable WAV. On Linux: `aplay /tmp/mic_test.wav` (or `ffplay`). The pipeline stops **gracefully** so the WAV header and data finalize. If the file is **silent**, remove **`channels`** from `:voice_pipeline` (use the device default; stereo USB mics often fail with `channels: 1`).
+This uses the same `:voice_pipeline` PortAudio settings and writes a playable WAV. On Linux: `aplay /tmp/mic_test.wav` (or `ffplay`). The pipeline stops **gracefully** so the WAV header and data finalize.
 
 `mix test` keeps `:start_whisper_mic` false so CI does not open the microphone.
 
-**Mic / PortAudio** — use a **single** `config :nelly_assitant, :voice_pipeline, key: value, ...` block (repeated `config` lines for the same key **replace** the whole map). Options: `device_id`, optional **`channels`** (omit unless you must; **stereo USB on Pi + `channels: 1` often yields silence**), `sample_format` (default `:s16le`), optional `sample_rate`, optional `whisper_toilet_capacity` (default `50_000`; toilets on mic→resample/resample→Whisper; WAV path uses the same capacity on mic→WAV and WAV→file). Omit `whisper_toilet_capacity` for the default; **do not set it to `nil`**. After changing config, run **`mix compile`**. Legacy `portaudio_input_device_id` is still used when `device_id` is absent. List devices: `mix eval "Membrane.PortAudio.print_devices()"`.
+**Mic / PortAudio** — use a **single** `config :nelly_assitant, :voice_pipeline, ...` block (a second `config` for the same key **replaces** the whole map). Set **`device_id`** from `mix eval "Membrane.PortAudio.print_devices()"` (PortAudio indices ≠ ALSA `card` numbers).
+
+**Raspberry Pi (USB mic):** If ALSA works, e.g. `arecord -D hw:2,0 -f S16_LE -c 2 -r 44100`, mirror that in Elixir: **`channels: 2`**, **`sample_rate: 44_100`**, **`sample_format: :s16le`**, and the **`device_id`** for your USB line. Opening **mono** (`channels: 1`) on a **stereo-only** path often gives **silence** even though `arecord -c 2` works.
+
+Optional: copy [`config/dev.local.exs.example`](config/dev.local.exs.example) to **`config/dev.local.exs`** (gitignored); `dev.exs` imports it when present so you can keep Mac settings in `dev.exs` and Pi overrides locally.
+
+Other options: optional `whisper_toilet_capacity` (default `50_000`; do not set to `nil`). After config changes, run **`mix compile`**. Legacy `portaudio_input_device_id` applies when `device_id` is absent.
 
 ## Installation (library)
 

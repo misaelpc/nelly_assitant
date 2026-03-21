@@ -6,8 +6,9 @@ defmodule NellyAssitant.Whisper.Mic.LivePipeline do
   argument to `Membrane.Pipeline.start_link/2` (later keys win), similar to passing opts into a
   custom `handle_init/2` pipeline module.
 
-  * `:channels` — omit to use the **PortAudio device default** (recommended for stereo USB mics on
-    Linux; forcing `1` can give silence). Set `1` or `2` only when needed.
+  * `:channels` — omit to use the **PortAudio device default**. If ALSA needs **`-c 2`** for your mic
+    (e.g. `arecord ... -c 2 -r 44100` works), set **`channels: 2`** here; **mono (`1`) can be silent**
+    on some stereo USB gadgets.
 
   * `:whisper_toilet_capacity` — queue size for **both** toilets (mic → resampler and resampler →
     Whisper; default `50_000`). The mic → resampler link used to use Membrane’s implicit default

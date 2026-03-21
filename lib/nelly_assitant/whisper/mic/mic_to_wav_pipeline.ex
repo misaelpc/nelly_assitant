@@ -5,8 +5,8 @@ defmodule NellyAssitant.Whisper.Mic.MicToWavPipeline do
 
   Use `mix nelly.mic_wav` to verify capture without loading Whisper/EXLA.
 
-  Omit `:channels` in `:voice_pipeline` to use the **device default** (many USB mics are stereo;
-  forcing `channels: 1` can yield silence on some hardware).
+  Match a known-good **`arecord`** line: if you use **`-c 2 -r 44100`**, set **`channels: 2`** and
+  **`sample_rate: 44_100`** in `:voice_pipeline` (mono can be silent on some stereo USB mics).
   """
 
   use Membrane.Pipeline

@@ -22,6 +22,9 @@ nelly_assitant-*.tar
 # Temporary files, for example, from tests.
 /tmp/
 
+# Machine-specific dev overrides (see dev.local.exs.example)
+/config/dev.local.exs
+
 
 #Ignore cursor AI rules
 .cursor/rules/codacy.mdc
