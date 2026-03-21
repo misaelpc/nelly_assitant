@@ -25,16 +25,22 @@ Use **one** of these (not both — they would both try to use the microphone):
    mix nelly.mic
    ```
 
-### Check the microphone (WAV file, no Whisper / EXLA)
+### Check the microphone (raw PCM, no Whisper / EXLA)
 
 With **`start_whisper_mic` set to `false`** (so nothing else holds the mic):
 
 ```bash
 mix nelly.mic_wav
-# or: mix nelly.mic_wav --seconds 5 --output /tmp/mic_test.wav
+# or: mix nelly.mic_wav --seconds 5 --output /tmp/mic_test.raw
 ```
 
-This uses the same `:voice_pipeline` PortAudio settings and writes a playable WAV. On Linux: `aplay /tmp/mic_test.wav` (or `ffplay`). The pipeline stops **gracefully** so the WAV header and data finalize.
+This uses the same `:voice_pipeline` PortAudio settings and writes **raw little-endian PCM** (no WAV header), using a **push** sink so capture is not stalled by the WAV / manual-demand chain. Convert to WAV with `ffmpeg`, matching your config (example for stereo 44.1 kHz s16le):
+
+```bash
+ffmpeg -f s16le -ar 44100 -ac 2 -i mic_capture.raw mic_capture.wav
+```
+
+The pipeline stops **gracefully**; check logs for `PushPcmSink finished: <N> bytes`.
 
 `mix test` keeps `:start_whisper_mic` false so CI does not open the microphone.
 

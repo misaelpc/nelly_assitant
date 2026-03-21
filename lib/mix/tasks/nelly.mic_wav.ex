@@ -1,20 +1,24 @@
 defmodule Mix.Tasks.Nelly.MicWav do
   @moduledoc """
-  Records microphone audio to a WAV file (no Whisper).
+  Records microphone audio to **raw PCM** (no Whisper, no WAV header).
 
-  Uses `config :nelly_assitant, :voice_pipeline` for PortAudio settings.
+  Uses `config :nelly_assitant, :voice_pipeline` for PortAudio settings. Convert with `ffmpeg`, e.g.:
+
+      ffmpeg -f s16le -ar 44100 -ac 2 -i mic_capture.raw out.wav
+
+  (Use the same `-ar` / `-ac` / sample format as your `:voice_pipeline`.)
 
   ## Examples
 
       mix nelly.mic_wav
-      mix nelly.mic_wav --seconds 5 --output /tmp/check.wav
+      mix nelly.mic_wav --seconds 5 --output /tmp/check.raw
 
   Disable `start_whisper_mic` in config while running this task so the mic is not already in use.
   """
 
   use Mix.Task
 
-  @shortdoc "Record mic to WAV (Membrane debug)"
+  @shortdoc "Record mic to raw PCM (Membrane debug)"
 
   @switches [
     output: :string,
@@ -23,7 +27,7 @@ defmodule Mix.Tasks.Nelly.MicWav do
 
   @aliases [o: :output, s: :seconds]
 
-  @default_output "mic_capture.wav"
+  @default_output "mic_capture.raw"
   @default_seconds 3
 
   @impl Mix.Task
@@ -46,8 +50,6 @@ defmodule Mix.Tasks.Nelly.MicWav do
     end
 
     {:ok, _} = Application.ensure_all_started(:logger)
-    {:ok, _} = Application.ensure_all_started(:membrane_file_plugin)
-    {:ok, _} = Application.ensure_all_started(:membrane_wav_plugin)
     {:ok, _} = Application.ensure_all_started(:membrane_portaudio_plugin)
 
     pipeline_opts =
@@ -56,7 +58,7 @@ defmodule Mix.Tasks.Nelly.MicWav do
       |> Keyword.put(:output, output)
       |> Keyword.put(:record_seconds, seconds)
 
-    Mix.shell().info("Recording #{seconds}s to #{output} (graceful stop + WAV finalize)...")
+    Mix.shell().info("Recording #{seconds}s to #{output} (raw PCM, graceful stop)...")
 
     case Membrane.Pipeline.start_link(NellyAssitant.Whisper.Mic.MicToWavPipeline, pipeline_opts) do
       {:ok, _supervisor, pipeline} ->
@@ -75,7 +77,7 @@ defmodule Mix.Tasks.Nelly.MicWav do
         end
 
         Mix.shell().info(
-          "Done. Linux: aplay #{output}  (or ffplay). If silent, remove :channels from :voice_pipeline (use device default)."
+          "Done. Check file size / logs for byte count. Convert: ffmpeg -f s16le -ar <rate> -ac <ch> -i #{output} out.wav"
         )
 
       {:error, reason} ->
